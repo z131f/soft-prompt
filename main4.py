@@ -1,37 +1,46 @@
 from PIL import Image
 import torch
 import os
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 from transformers.models.auto.processing_auto import AutoProcessor
 from transformers.models.auto.configuration_auto import AutoConfig
-from transformers.generation.utils import GenerationMixin
-from transformers.modeling_utils import PreTrainedModel
 import torch.nn as nn
 from transformers.utils import is_torchdynamo_compiling
-import math
 import numpy as np
 from typing import Optional, List, Union, Tuple
 from transformers.modeling_outputs import CausalLMOutputWithPast
 import logging
 from transformers.models.llava_next.configuration_llava_next import LlavaNextConfig
-from transformers.models.llava_next.modeling_llava_next import LlavaNextPreTrainedModel, LLAVA_NEXT_INPUTS_DOCSTRING, LlavaNextCausalLMOutputWithPast
-from transformers.models.auto.modeling_auto import AutoModelForCausalLM, AutoModel
+from transformers.models.llava_next.modeling_llava_next import LlavaNextPreTrainedModel, LlavaNextCausalLMOutputWithPast
 from transformers.models.llava_next import LlavaNextForConditionalGeneration
 from transformers.models.llava_next.processing_llava_next import LlavaNextProcessor
-from transformers.models.llava_next.modeling_llava_next import unpad_image, get_anyres_image_grid_shape
+from transformers.models.llava_next.modeling_llava_next import unpad_image, get_anyres_image_grid_shape, image_size_to_num_patches
+
+# 引入训练所需的库
+from transformers import Trainer, TrainingArguments
+from torch.utils.data import Dataset # 用于自定义数据集
 
 logger = logging.getLogger(__name__)
 
-# 原始模型名称
-model_name = "llava-hf/llava-v1.6-mistral-7b-hf"
-model_cache = "model_cache"  # 定义模型缓存路径
+device = 'cuda:3'
 
-image_size = (672, 672)  # 定义图像的resize大小
-patch_num = image_size[0] // 336 * image_size[1] // 336 + 1  # 对应4个patch和一个额外patch
-# 通过resize图像来固定patch数，不用修改processer了
+# 设置环境变量，使用国内镜像
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
+# 原始模型名称和缓存路径
+model_name = "llava-hf/llava-v1.6-mistral-7b-hf"
+model_cache = "model_cache"
 
 # 加载原始模型的配置
 config = AutoConfig.from_pretrained(model_name, cache_dir=model_cache, trust_remote_code=True)
+
+# 图像处理参数
+image_size = (672, 672)
+# patch_num = image_size[0] // 336 * image_size[1] // 336 + 1
+patch_num = image_size_to_num_patches(
+                image_size=image_size,
+                grid_pinpoints=config.image_grid_pinpoints,
+                patch_size=config.vision_config.image_size,
+            )
 
 class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
     def __init__(self, config: LlavaNextConfig):
@@ -39,7 +48,15 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
         # Add your new layer here
         self.image_seq_length = config.image_seq_length
         self.soft_prompts = nn.Parameter(torch.randn(patch_num, config.vision_config.intermediate_size))  # 添加soft prompt参数
-        self.linear_projector = nn.Linear(config.vision_config.intermediate_size * 2, config.vision_config.intermediate_size)
+        # self.linear_projector = nn.Linear(config.vision_config.intermediate_size * 2, config.vision_config.intermediate_size)
+        input_dim = config.vision_config.intermediate_size * 2
+        output_dim = config.vision_config.intermediate_size
+
+        self.linear_projector = nn.Sequential(
+            nn.Linear(input_dim, input_dim), # Example: double the input dimension for the first hidden layer
+            nn.GELU(), # Non-linear activation (Gaussian Error Linear Unit)
+            nn.Linear(input_dim, output_dim), # Example: reduce to original intermediate_size * 2
+        )
         self.global_prompt_self_attention = nn.MultiheadAttention(
             embed_dim=config.vision_config.intermediate_size,  # 或 config.hidden_size，取决于你将在哪里使用它
             num_heads=4,  # 你可以根据你的需求调整这个数字
@@ -57,7 +74,7 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
         image_num_patches = [
             patch_num for imsize in image_sizes
         ]
-        print(f"image_num_patches: {image_num_patches}")
+        # print(f"image_num_patches: {image_num_patches}")
         if pixel_values.dim() == 5:
             # stacked if input is (batch_size, num_patches, num_channels, height, width)
             _pixel_values_list = [pix_val[:num_patch] for pix_val, num_patch in zip(pixel_values, image_num_patches)]
@@ -66,7 +83,7 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
             # otherwise has to be stacked from list of (num_patches, num_channels, height, width)
             raise ValueError(f"pixel_values of shape {pixel_values.shape}, expect to be of 4 or 5 dimensions")
 
-        print(f"pixel_values shape: {pixel_values.shape}")
+        # print(f"pixel_values shape: {pixel_values.shape}")
         image_features = self.vision_tower(pixel_values, output_hidden_states=True)
         if isinstance(vision_feature_layer, int):
             selected_image_feature = image_features.hidden_states[vision_feature_layer]
@@ -330,41 +347,205 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
             attentions=outputs.attentions,
             image_hidden_states=image_features if pixel_values is not None else None, # type: ignore
         )
-    
 
-# 使用修改后的模型类
+# --- 训练代码部分 ---
+
+# 1. 冻结原始模型的参数
 modified_config = LlavaNextConfig.from_pretrained(model_name, cache_dir=model_cache, trust_remote_code=True)
-modified_model = ModifiedLlavaNext.from_pretrained(model_name, config=modified_config, cache_dir=model_cache, device_map="auto", trust_remote_code=True)
+modified_model = ModifiedLlavaNext.from_pretrained(model_name, config=modified_config, cache_dir=model_cache, device_map="auto")
 
-# 加载处理器（AutoProcessor），用于处理输入数据
-processor = LlavaNextProcessor.from_pretrained(model_name, cache_dir=model_cache, use_fast=True, num_additional_image_tokens=1+1)  # 增加一个额外的token用于处理图像输入
-# 现在只用填充这个token位置就好了
+# 冻结所有参数
+for param in modified_model.parameters():
+    param.requires_grad = False
 
-# 定义输入的提示文本，包含用户和助手的对话格式
-prompt = "USER: <image>\n What's the content of the image? ASSISTANT:"
+# 解冻你新增的模块的参数
+modified_model.soft_prompts.requires_grad = True
+for param in modified_model.linear_projector.parameters():
+    param.requires_grad = True
+for param in modified_model.global_prompt_self_attention.parameters():
+    param.requires_grad = True
+
+# 确认哪些参数正在训练
+print("Parameters being trained:")
+for name, param in modified_model.named_parameters():
+    if param.requires_grad:
+        print(name)
+
+# 加载处理器
+processor = LlavaNextProcessor.from_pretrained(model_name, cache_dir=model_cache, use_fast=True, num_additional_image_tokens=1 + 1) # 增加一个额外的token用于处理图像输入
+
+# 2. 准备数据集
+# 你需要将这部分替换为你的实际数据集加载逻辑。
+# 这里只是一个虚拟数据集的示例。
+class CustomDataset(Dataset):
+    def __init__(self, processor, image_paths, texts, image_size):
+        self.processor = processor
+        self.image_paths = image_paths
+        self.texts = texts
+        self.image_size = image_size
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        image_path = self.image_paths[idx]
+        text = self.texts[idx]
+        
+        try:
+            image = Image.open(image_path).convert("RGB").resize(self.image_size)
+        except Exception as e:
+            logger.error(f"Error loading image {image_path}: {e}")
+            # 返回一个虚拟的空数据或者跳过这个样本
+            return None # 这在 collate_fn 中需要处理
+
+        # 处理文本和图像
+        # 这里需要将 labels 和 input_ids 对齐
+        # 对于视觉-语言模型，通常 labels 会是文本部分的 input_ids
+        inputs = self.processor(text=text, images=image, return_tensors="pt", padding="max_length", truncation=True, max_length=3000)
+        
+        # 对于生成任务，通常 labels 等于 input_ids，但是会忽略图像token和prompt token的损失
+        inputs["labels"] = inputs["input_ids"].clone()
+        
+        # 确保 labels 中图像 token 和任何你想忽略损失的 token 设置为 -100
+        # self.config.image_token_index 是图像占位符的token ID
+        # 你的 prompt token 和 soft_prompts 相关的 token 位置也可能需要设置为 -100
+        # 找到图像 token 的位置并将其 labels 设为 -100
+        inputs["labels"][inputs["labels"] == self.processor.tokenizer.pad_token_id] = -100 # 忽略pad token的损失
+        inputs["labels"][inputs["labels"] == self.processor.tokenizer.unk_token_id] = -100 # 忽略unk token的损失
+        inputs["labels"][inputs["labels"] == self.processor.image_token_id] = -100 # 忽略图像token的损失
+
+        # 将所有张量从 batch 维度中挤压出来，因为 DataLoader 会重新添加批次维度
+        inputs = {k: v.squeeze(0) for k, v in inputs.items()}
+        return inputs
+
+# 示例数据 (请替换为你的实际数据)
+# 假设你有一个图像文件列表和对应的文本描述列表
+dummy_image_paths = ["1.jpg", "1.jpg"] # 替换为你的图像路径列表
+dummy_texts = ["USER: <image>\n What's the content of the image? ASSISTANT: This is a test image.", "USER: <image>\n Describe the scene. ASSISTANT: A detailed description of the image."]
+
+# 创建数据集实例
+train_dataset = CustomDataset(processor, dummy_image_paths, dummy_texts, image_size)
+
+print(f'processor.tokenizer.pad_token_id: {processor.tokenizer.pad_token_id}')
+# processor.tokenizer.pad_token_id: 32001
+
+# 定义 collate_fn 来处理批量数据
+def custom_collate_fn(batch):
+    # 过滤掉 None 值（如果 CustomDataset 返回了 None）
+    batch = [item for item in batch if item is not None]
+    if not batch:
+        return None
+    
+    # 从批次中的第一个元素获取所有键
+    keys = batch[0].keys()
+    collated_batch = {}
+    for key in keys:
+        if key == "pixel_values":
+            # 对于 pixel_values，它们可能是不同数量的图像块，所以需要特殊处理
+            # 这里的 pixel_values 已经是预处理后的 5D 张量 (batch_size, num_patches, C, H, W)
+            # 或者 4D 张量 (num_patches, C, H, W)
+            # 如果是 5D，可以直接堆叠
+            # 如果是 4D，并且每个样本的 patch 数量不同，则需要 pad 或使用 list
+            # 在 Llava-Next 中，通常是 5D 张量，其中 num_patches 是固定值（4 + 1）
+            collated_batch[key] = torch.stack([x[key] for x in batch])
+        elif key == "image_sizes":
+            collated_batch[key] = torch.stack([x[key] for x in batch])
+        else:
+            # 对于 input_ids, attention_mask, labels，它们都是张量，需要进行pad
+            # 使用 processor 的 tokenizer 的 pad 方法
+            collated_batch[key] = torch.nn.utils.rnn.pad_sequence([x[key] for x in batch], 
+                                                                   batch_first=True, 
+                                                                   padding_value=processor.tokenizer.pad_token_id)
+            # 对于 attention_mask，padding_value 应该是 0
+            if key == "attention_mask":
+                collated_batch[key][collated_batch[key] == processor.tokenizer.pad_token_id] = 0
+            # 对于 labels，padding_value 应该是 -100
+            elif key == "labels":
+                collated_batch[key][collated_batch[key] == processor.tokenizer.pad_token_id] = -100
+    
+    return collated_batch
+
+
+# 3. 设置 TrainingArguments
+training_args = TrainingArguments(
+    output_dir="./output/llava_next_modified_finetune", # 训练输出目录
+    # num_train_epochs=3,                                # 训练轮数
+    num_train_epochs=15,
+    per_device_train_batch_size=1,                     # 每个设备的训练批量大小
+    gradient_accumulation_steps=4,                     # 梯度累积步数，模拟更大的batch size
+    learning_rate=5e-5,                                # 学习率
+    weight_decay=0.01,                                 # 权重衰减
+    logging_dir="./logs",                              # 日志目录
+    logging_steps=10,                                  # 每隔多少步记录一次日志
+    save_steps=500,                                    # 每隔多少步保存一次模型
+    save_total_limit=2,                                # 最多保存的模型数量
+    do_train=True,                                     # 执行训练
+    fp16=True,                                         # 使用混合精度训练
+    report_to="none",                                  # 不报告到任何平台 (可选，如果你想用wandb等可以设置)
+)
+
+# # 4. 创建 Trainer 实例
+# trainer = Trainer(
+#     model=modified_model,
+#     args=training_args,
+#     train_dataset=train_dataset,
+#     data_collator=custom_collate_fn, # 使用自定义的 collate_fn
+# )
+
+# # 5. 开始训练
+# print("Starting training...")
+# trainer.train()
+# print("Training finished!")
+
+# # 6. 保存训练好的模型（只有新增的模块）
+# # 如果你只训练了新增模块，保存整个模型会包含基础模型的权重
+# # 如果你想只保存你训练的 soft_prompts, linear_projector 和 global_prompt_self_attention
+# # 你需要手动保存它们的 state_dict
+# # 或者在训练结束后，Trainer 会保存整个模型，你可以加载后手动提取你需要的权重
+
+# # 示例：手动保存新增模块的权重
+# output_dir = "./output/llava_next_modified_finetune/trained_modules"
+# os.makedirs(output_dir, exist_ok=True)
+
+# torch.save(modified_model.soft_prompts, os.path.join(output_dir, "soft_prompts.pt"))
+# torch.save(modified_model.linear_projector.state_dict(), os.path.join(output_dir, "linear_projector.pt"))
+# torch.save(modified_model.global_prompt_self_attention.state_dict(), os.path.join(output_dir, "global_prompt_self_attention.pt"))
+# print(f"新模块权重已保存到：{output_dir}")
+
+# --- 训练后的测试部分 (可选) ---
+# 你可以再次运行你原始的测试代码来验证微调后的模型效果
+
+# # 定义输入的提示文本，包含用户和助手的对话格式
+prompt_test = "USER: <image>\n What's the content of the image? ASSISTANT:"
 
 # 定义图像文件的路径
-url = "1.jpg"  # 替换为你的图像路径
+url_test = "1.jpg"  # 替换为你的图像路径
 
 try:
     # 打开图像文件
-    image = Image.open(fp=url).resize(image_size)  # 调整图像大小为512x512
+    image_test = Image.open(fp=url_test).resize(image_size)
 
     # 使用处理器处理文本和图像，生成模型输入
-    inputs = processor(text=prompt, images=image, return_tensors="pt") # type: ignore
+    inputs_test = processor(text=prompt_test, images=image_test, return_tensors="pt")
+
+    # 将输入数据移动到GPU上
+    for temp_key in inputs_test.keys():
+        inputs_test[temp_key] = inputs_test[temp_key].to(device)
 
     # 使用修改后的模型生成输出
-    generate_ids = modified_model.generate(**inputs, max_new_tokens=100)
+    modified_model.eval() # 切换到评估模式
+    with torch.no_grad():
+        generate_ids_test = modified_model.generate(**inputs_test, max_new_tokens=100)
 
     # 将生成的token解码为文本，跳过特殊token并清理空格
-    response = processor.batch_decode( # type: ignore
-        generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
+    response_test = processor.batch_decode(
+        generate_ids_test, skip_special_tokens=True, clean_up_tokenization_spaces=False
     )[0]
 
     # 打印模型的响应
-    print("\n\nresponse from modified model:\n", response)
+    print("\n\nresponse from modified model after finetuning:\n", response_test)
 
 except FileNotFoundError:
-    print(f"Error: Image file not found at {url}")
+    print(f"Error: Image file not found at {url_test}")
 except Exception as e:
-    print(f"An error occurred during processing: {e}")
+    print(f"An error occurred during post-finetune processing: {e}")
