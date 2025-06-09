@@ -66,7 +66,7 @@ RSVQA_LR_Eval_Dataset_instance = RSVQA_LR_Dataset(
     images_json_path=eval_images_json_path,
     image_size=image_size,
     logger=logger,
-    use_num=80, # 使用部分数据进行评估，方便调试
+    use_num=1000, # 使用部分数据进行评估，方便调试
     add_instruct=True,
     is_eval=True  # 设置为评估模式
 )
@@ -83,7 +83,7 @@ model.eval()
 # 'all-MiniLM-L6-v2' 在速度和性能之间取得了很好的平衡。
 # 如果计算资源允许，你可以考虑使用 'all-mpnet-base-v2' 以获得更高的准确性。
 print("正在加载用于语义相似度的句子 transformer 模型...")
-sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
+sentence_model = SentenceTransformer('all-mpnet-base-v2')
 print("句子 transformer 模型加载完成。")
 
 correct_predictions_semantic = 0
