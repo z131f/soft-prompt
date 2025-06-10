@@ -11,18 +11,26 @@ from transformers.utils import is_torchdynamo_compiling
 
 
 class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
-    def __init__(self, config: LlavaNextConfig, patch_num=None):
+    def __init__(self, config: LlavaNextConfig, prompt_num):
         super().__init__(config)
         # Add your new layer here
-        self.patch_num = patch_num
+        self.prompt_num = prompt_num
         self.image_seq_length = config.image_seq_length
-        self.soft_prompts = nn.Parameter(torch.randn(patch_num, config.vision_config.intermediate_size))  # 添加soft prompt参数
-        self.linear_projector = nn.Linear(config.vision_config.intermediate_size * 2, config.vision_config.intermediate_size)
+        self.soft_prompts = nn.Parameter(torch.randn(prompt_num, config.vision_config.intermediate_size))  # 添加soft prompt参数
+        # self.linear_projector = nn.Linear(config.vision_config.intermediate_size * 2, config.vision_config.intermediate_size)
         self.input_dim = config.vision_config.intermediate_size * 2
         self.output_dim = config.vision_config.intermediate_size
 
+        self.q_projector_image = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size // 2)
+        self.k_projector_image = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size // 2)
+        self.v_projector_image = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size)
+
+        # self.q_projector_prompt = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size)
+        self.k_projector_prompt = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size // 2)
+        self.v_projector_prompt = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size)
+
         # 获取权重和偏置的维度
-        out_features, in_features = self.linear_projector.weight.shape # (intermediate_size, intermediate_size * 2)
+        # out_features, in_features = self.linear_projector.weight.shape # (intermediate_size, intermediate_size * 2)
 
 
         # self.linear_projector = nn.Sequential(
@@ -44,7 +52,17 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
 
         # 解冻你新增的模块的参数
         self.soft_prompts.requires_grad = True
-        for param in self.linear_projector.parameters():
+        # for param in self.linear_projector.parameters():
+        #     param.requires_grad = True
+        for param in self.q_projector_image.parameters():
+            param.requires_grad = True
+        for param in self.k_projector_image.parameters():
+            param.requires_grad = True
+        for param in self.v_projector_image.parameters():
+            param.requires_grad = True
+        for param in self.k_projector_prompt.parameters():
+            param.requires_grad = True
+        for param in self.v_projector_prompt.parameters():
             param.requires_grad = True
         for param in self.global_prompt_self_attention.parameters():
             param.requires_grad = True
@@ -55,66 +73,66 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
             if param.requires_grad:
                 print(name)
 
-        # 1. 初始化偏置为全0
-        nn.init.constant_(self.linear_projector.bias, 0)
+        # # 1. 初始化偏置为全0
+        # nn.init.constant_(self.linear_projector.bias, 0)
 
-        # 2. 初始化权重
-        with torch.no_grad():
-            out_features = self.output_dim
-            in_features = self.input_dim
+        # # 2. 初始化权重
+        # with torch.no_grad():
+        #     out_features = self.output_dim
+        #     in_features = self.input_dim
 
-            # 创建一个与权重形状相同的全零张量
-            weight_data = torch.zeros((out_features, in_features), dtype=self.linear_projector.weight.dtype)
+        #     # 创建一个与权重形状相同的全零张量
+        #     weight_data = torch.zeros((out_features, in_features), dtype=self.linear_projector.weight.dtype)
 
-            # 创建一个单位矩阵
-            identity_matrix = torch.eye(out_features, dtype=self.linear_projector.weight.dtype)
+        #     # 创建一个单位矩阵
+        #     identity_matrix = torch.eye(out_features, dtype=self.linear_projector.weight.dtype)
 
-            # 将单位矩阵放置在 weight_data 的前一半列
-            # weight_data[:, :out_features] 是指所有行，前 out_features 列
-            weight_data[:, :out_features].copy_(identity_matrix)
+        #     # 将单位矩阵放置在 weight_data 的前一半列
+        #     # weight_data[:, :out_features] 是指所有行，前 out_features 列
+        #     weight_data[:, :out_features].copy_(identity_matrix)
 
-            # 将初始化后的数据赋值给线性层的权重
-            self.linear_projector.weight.copy_(weight_data)
+        #     # 将初始化后的数据赋值给线性层的权重
+        #     self.linear_projector.weight.copy_(weight_data)
 
-    def get_image_features(
-        self,
-        pixel_values: torch.FloatTensor,
-        image_sizes: torch.Tensor,
-        vision_feature_layer: Union[int, List[int]],
-        vision_feature_select_strategy: str,
-    ):
-        image_num_patches = [
-            self.patch_num for imsize in image_sizes
-        ]
-        # print(f"image_num_patches: {image_num_patches}")
-        if pixel_values.dim() == 5:
-            # stacked if input is (batch_size, num_patches, num_channels, height, width)
-            _pixel_values_list = [pix_val[:num_patch] for pix_val, num_patch in zip(pixel_values, image_num_patches)]
-            pixel_values = torch.cat(_pixel_values_list, dim=0) # type: ignore
-        elif pixel_values.dim() != 4:
-            # otherwise has to be stacked from list of (num_patches, num_channels, height, width)
-            raise ValueError(f"pixel_values of shape {pixel_values.shape}, expect to be of 4 or 5 dimensions")
+    # def get_image_features(
+    #     self,
+    #     pixel_values: torch.FloatTensor,
+    #     image_sizes: torch.Tensor,
+    #     vision_feature_layer: Union[int, List[int]],
+    #     vision_feature_select_strategy: str,
+    # ):
+    #     image_num_patches = [
+    #         self.patch_num for imsize in image_sizes
+    #     ]
+    #     # print(f"image_num_patches: {image_num_patches}")
+    #     if pixel_values.dim() == 5:
+    #         # stacked if input is (batch_size, num_patches, num_channels, height, width)
+    #         _pixel_values_list = [pix_val[:num_patch] for pix_val, num_patch in zip(pixel_values, image_num_patches)]
+    #         pixel_values = torch.cat(_pixel_values_list, dim=0) # type: ignore
+    #     elif pixel_values.dim() != 4:
+    #         # otherwise has to be stacked from list of (num_patches, num_channels, height, width)
+    #         raise ValueError(f"pixel_values of shape {pixel_values.shape}, expect to be of 4 or 5 dimensions")
 
-        # print(f"pixel_values shape: {pixel_values.shape}")
-        image_features = self.vision_tower(pixel_values, output_hidden_states=True)
-        if isinstance(vision_feature_layer, int):
-            selected_image_feature = image_features.hidden_states[vision_feature_layer]
-        else:
-            hs_pool = [image_features.hidden_states[layer_idx] for layer_idx in vision_feature_layer]
-            selected_image_feature = torch.cat(hs_pool, dim=-1)
+    #     # print(f"pixel_values shape: {pixel_values.shape}")
+    #     image_features = self.vision_tower(pixel_values, output_hidden_states=True)
+    #     if isinstance(vision_feature_layer, int):
+    #         selected_image_feature = image_features.hidden_states[vision_feature_layer]
+    #     else:
+    #         hs_pool = [image_features.hidden_states[layer_idx] for layer_idx in vision_feature_layer]
+    #         selected_image_feature = torch.cat(hs_pool, dim=-1)
 
-        if vision_feature_select_strategy == "default":
-            selected_image_feature = selected_image_feature[:, 1:]
-        elif vision_feature_select_strategy == "full":
-            selected_image_feature = selected_image_feature
+    #     if vision_feature_select_strategy == "default":
+    #         selected_image_feature = selected_image_feature[:, 1:]
+    #     elif vision_feature_select_strategy == "full":
+    #         selected_image_feature = selected_image_feature
         
-        # print(f"selected_image_feature shape: {selected_image_feature.shape}")
+    #     # print(f"selected_image_feature shape: {selected_image_feature.shape}")
 
-        image_features = self.multi_modal_projector(selected_image_feature)
-        # print(f"image_features shape: {image_features.shape}")
-        image_features = torch.split(image_features, image_num_patches, dim=0)
+    #     image_features = self.multi_modal_projector(selected_image_feature)
+    #     # print(f"image_features shape: {image_features.shape}")
+    #     image_features = torch.split(image_features, image_num_patches, dim=0)
      
-        return image_features
+    #     return image_features
     
     def pack_image_features(self, image_features, image_sizes, vision_feature_select_strategy, image_newline=None):
         """
@@ -282,8 +300,22 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
             # TODO: 可以在这里插入修改代码，先concat p tensor，再线性层降维，还有生成后面需要的额外token
             image_features_processed = []
             for image_feature in image_features:
-                image_features_with_soft_prompt = torch.cat((image_feature, self.soft_prompts.unsqueeze(1).expand(-1,self.image_seq_length,-1)), dim=-1)
-                image_features_processed.append(self.linear_projector(image_features_with_soft_prompt))
+                image_feature_k = self.k_projector_image(image_feature).unsqueeze(2)
+                image_feature_q = self.q_projector_image(image_feature).unsqueeze(2)
+                image_feature_v = self.v_projector_image(image_feature).unsqueeze(2)
+                patch_size  = image_feature.shape[0]
+                image_len = image_feature.shape[1]
+                soft_prompt_k = self.k_projector_prompt(self.soft_prompts).unsqueeze(0).unsqueeze(1).expand(patch_size,image_len,-1,-1)
+                soft_prompt_v = self.v_projector_prompt(self.soft_prompts).unsqueeze(0).unsqueeze(1).expand(patch_size,image_len,-1,-1)
+                final_k = torch.cat((image_feature_k, soft_prompt_k), dim=2)
+                final_v = torch.cat((image_feature_v, soft_prompt_v), dim=2)
+                pass
+                qk = torch.matmul(image_feature_q.to(final_k.device), final_k.transpose(-1, -2)) / np.sqrt(self.config.vision_config.intermediate_size)
+                atten_weights = torch.softmax(qk, dim=-1)
+                output = torch.matmul(atten_weights, final_v)
+                # image_features_with_soft_prompt = torch.cat((image_feature, self.soft_prompts.unsqueeze(1).expand(-1,self.image_seq_length,-1)), dim=-1)
+                # image_features_processed.append(self.linear_projector(image_features_with_soft_prompt))
+                image_features_processed.append(output.squeeze(2)) # [5, 576, 4096] -> [5, 576, 4096]
                 # image_features_with_soft_prompt = image_feature + self.soft_prompts.unsqueeze(1).expand(-1,self.image_seq_length,-1).to(image_feature.device, image_feature.dtype)
                 # image_features_processed.append(image_features_with_soft_prompt)
             image_features = tuple(image_features_processed)

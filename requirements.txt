@@ -1,0 +1,6 @@
+numpy==2.3.0
+Pillow==11.2.1
+sentence_transformers==4.1.0
+torch==2.5.1
+tqdm==4.67.1
+transformers==4.51.3

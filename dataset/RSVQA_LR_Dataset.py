@@ -13,7 +13,7 @@ import os
 # logger.addHandler(handler)
 
 class RSVQA_LR_Dataset(Dataset):
-    def __init__(self, processor, image_folder_path, questions_json_path, answers_json_path, images_json_path, image_size, logger, use_num, add_instruct=False, is_eval=False):
+    def __init__(self, processor, image_folder_path, questions_json_path, answers_json_path, images_json_path, image_size, use_num,logger=None, add_instruct=False, is_eval=False):
         self.processor = processor
         self.image_folder_path = image_folder_path
         self.image_size = image_size
