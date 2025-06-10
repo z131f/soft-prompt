@@ -89,7 +89,8 @@ image_folder_path="DATA/RSVQA-LR/images"  # 替换为实际的图像文件夹路
 questions_json_path="DATA/RSVQA-LR/train/LR_split_train_questions.json"  # 替换为实际的 JSON 文件路径
 answers_json_path="DATA/RSVQA-LR/train/LR_split_train_answers.json"  # 替换为实际的 JSON 文件路径
 images_json_path="DATA/RSVQA-LR/train/LR_split_train_images.json"  # 替换为实际的 JSON 文件路径
-image_size=(256, 256)  # 替换为实际的图像大小
+# image_size=(256, 256)  # 替换为实际的图像大小
+image_size=(512, 512)
 patch_num=image_size_to_num_patches(image_size=image_size,grid_pinpoints=config.image_grid_pinpoints,patch_size=config.vision_config.image_size)
 print(f"patch_num: {patch_num}")
 # 图像处理参数
@@ -109,7 +110,7 @@ RSVQA_LR_Dataset_instance = RSVQA_LR_Dataset(
     images_json_path=images_json_path,
     image_size=image_size,
     logger=logger,
-    use_num=5000
+    use_num=15000
 )
 
 eval_questions_json_path = "DATA/RSVQA-LR/test/LR_split_test_questions.json"
@@ -133,7 +134,7 @@ model = ModifiedLlavaNext.from_pretrained(model_name, config=config, cache_dir=m
 training_args = TrainingArguments(
     output_dir="./output/llava_next_modified_finetune", # 训练输出目录
     num_train_epochs=1,                                # 训练轮数
-    per_device_train_batch_size=3,                     # 每个设备的训练批量大小
+    per_device_train_batch_size=2,                     # 每个设备的训练批量大小
     per_device_eval_batch_size=2,                      # 每个设备的评估批量大小
     gradient_accumulation_steps=1,                     # 梯度累积步数，模拟更大的batch size
     # learning_rate=5e-5,                                # 学习率
