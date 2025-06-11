@@ -1,3 +1,4 @@
+model_cache/
 model_cache/.locks/models--llava-hf--llava-v1.6-mistral-7b-hf/02a36fb5d7b0574dc4c8da545089aac85b14a7972908293c11a63eca8ef46c0e.lock
 model_cache/.locks/models--llava-hf--llava-v1.6-mistral-7b-hf/2d7d9a865868c5f05d8e44b6218f43401a0456d875429d32fa5f947d5ca01a67.lock
 model_cache/.locks/models--llava-hf--llava-v1.6-mistral-7b-hf/4bd5222947172917d6a7770e47e797f3253c669a.lock
@@ -865,3 +866,10 @@ tmpdm0r5zo6/_remote_module_non_scriptable.py
 tmpdm0r5zo6/__pycache__/_remote_module_non_scriptable.cpython-312.pyc
 tmpesid48v0/_remote_module_non_scriptable.py
 tmpesid48v0/__pycache__/_remote_module_non_scriptable.cpython-312.pyc
+__pycache__/config.cpython-312.pyc
+dataset/__pycache__/utils.cpython-312.pyc
+model/__pycache__/llava_next_tune.cpython-312.pyc
+output/llava_next/k_projector_image.pt
+output/llava_next/q_projector_prompt.pt
+output/llava_next/soft_prompts.pt
+trainer/__pycache__/llava_next.cpython-312.pyc
