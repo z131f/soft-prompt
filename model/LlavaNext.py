@@ -11,23 +11,23 @@ from transformers.utils import is_torchdynamo_compiling
 
 
 class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
-    def __init__(self, config: LlavaNextConfig, prompt_num):
+    def __init__(self, config: LlavaNextConfig, patch_num):
         super().__init__(config)
         # Add your new layer here
-        self.prompt_num = prompt_num
+        self.patch_num = patch_num
         self.image_seq_length = config.image_seq_length
-        self.soft_prompts = nn.Parameter(torch.randn(prompt_num, config.vision_config.intermediate_size))  # 添加soft prompt参数
+        self.soft_prompts = nn.Parameter(torch.randn(patch_num, config.vision_config.intermediate_size))  # 添加soft prompt参数
         # self.linear_projector = nn.Linear(config.vision_config.intermediate_size * 2, config.vision_config.intermediate_size)
-        self.input_dim = config.vision_config.intermediate_size * 2
+        # self.input_dim = config.vision_config.intermediate_size * 2
         self.output_dim = config.vision_config.intermediate_size
 
-        self.q_projector_image = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size // 2)
-        self.k_projector_image = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size // 2)
-        self.v_projector_image = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size)
+        # self.q_projector_image = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size // 2)
+        self.k_projector_image = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size)
+        # self.v_projector_image = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size)
 
-        # self.q_projector_prompt = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size)
-        self.k_projector_prompt = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size // 2)
-        self.v_projector_prompt = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size)
+        self.q_projector_prompt = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size)
+        # self.k_projector_prompt = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size // 2)
+        # self.v_projector_prompt = nn.Linear(config.vision_config.intermediate_size, config.vision_config.intermediate_size)
 
         # 获取权重和偏置的维度
         # out_features, in_features = self.linear_projector.weight.shape # (intermediate_size, intermediate_size * 2)
@@ -54,16 +54,18 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
         self.soft_prompts.requires_grad = True
         # for param in self.linear_projector.parameters():
         #     param.requires_grad = True
-        for param in self.q_projector_image.parameters():
-            param.requires_grad = True
+        # for param in self.q_projector_image.parameters():
+        #     param.requires_grad = True
         for param in self.k_projector_image.parameters():
             param.requires_grad = True
-        for param in self.v_projector_image.parameters():
+        for param in self.q_projector_prompt.parameters():
             param.requires_grad = True
-        for param in self.k_projector_prompt.parameters():
-            param.requires_grad = True
-        for param in self.v_projector_prompt.parameters():
-            param.requires_grad = True
+        # for param in self.v_projector_image.parameters():
+        #     param.requires_grad = True
+        # for param in self.k_projector_prompt.parameters():
+        #     param.requires_grad = True
+        # for param in self.v_projector_prompt.parameters():
+        #     param.requires_grad = True
         for param in self.global_prompt_self_attention.parameters():
             param.requires_grad = True
 
@@ -133,76 +135,6 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
     #     image_features = torch.split(image_features, image_num_patches, dim=0)
      
     #     return image_features
-    
-    def pack_image_features(self, image_features, image_sizes, vision_feature_select_strategy, image_newline=None):
-        """
-        Reshape, unpad and then pack each image_feature into a single image_features tensor containing all visual vectors.
-
-        Args:
-            image_features (`List[torch.Tensor]` of length num_images, each of shape `(num_patches, image_length, embed_dim)`)
-                List of image feature tensor, each contains all the visual feature of all patches.
-            image_sizes (`torch.Tensor` of shape `(num_images, 2)`)
-                Actual image size of each images (H, W).
-            vision_feature_select_strategy (`str`)
-                The feature selection strategy used to select the vision feature from the vision backbone.
-            image_newline (`torch.Tensor` of shape `(embed_dim)`)
-                New line embedding vector.
-        Returns:
-            image_features (`torch.Tensor` of shape `(all_feat_len, embed_dim)`)
-            feature_lens (`List[int]`)
-                token length of each image in image_features
-        """
-        new_image_features = []
-        feature_lens = []
-        for image_idx, image_feature in enumerate(image_features):
-            if image_feature.shape[0] > 1:
-                base_image_feature = image_feature[0]
-                image_feature = image_feature[1:]
-                height = width = self.config.vision_config.image_size // self.config.vision_config.patch_size
-
-                num_patch_height, num_patch_width = get_anyres_image_grid_shape(
-                    image_sizes[image_idx],
-                    self.config.image_grid_pinpoints,
-                    self.config.vision_config.image_size,
-                )
-
-                if (
-                    np.prod(image_feature.shape) % (num_patch_height * num_patch_width * height * width) != 0
-                    and vision_feature_select_strategy == "default"
-                ):
-                    logger.warning_once( # type: ignore
-                        "Image feature shape does not line up with the provided patch size. "
-                        "You may be using the `default` vision_feature_select_strategy with a"
-                        " visual encoder that does not have CLS."
-                    )
-
-                image_feature = image_feature.view(num_patch_height, num_patch_width, height, width, -1)
-                image_feature = image_feature.permute(4, 0, 2, 1, 3).contiguous()
-                image_feature = image_feature.flatten(1, 2).flatten(2, 3)
-                image_feature = unpad_image(image_feature, image_sizes[image_idx])
-                if image_newline is not None:
-                    # [4096, 48, 48]
-                    image_feature = torch.cat(
-                        (
-                            image_feature,
-                            image_newline[:, None, None]
-                            .expand(*image_feature.shape[:-1], 1)
-                            .to(image_feature.device, image_feature.dtype),
-                        ),
-                        dim=-1,
-                    )
-                    # [4096, 48, 49]
-                image_feature = image_feature.flatten(1, 2).transpose(0, 1)
-                image_feature = torch.cat((base_image_feature, image_feature), dim=0)
-            else:
-                image_feature = image_feature[0]
-                if image_newline is not None:
-                    image_feature = torch.cat((image_feature, image_newline[None].to(image_feature)), dim=0)
-            new_image_features.append(image_feature)
-            feature_lens.append(image_feature.size(0))
-        image_features = torch.cat(new_image_features, dim=0)
-        feature_lens = torch.tensor(feature_lens, dtype=torch.long, device=image_features.device)
-        return image_features, feature_lens
     
     def forward(
         self,
@@ -298,27 +230,14 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
             )
             # 结果 [5, 576, 4096]，对应5个patch，每个patch有576个token，每个token有4096维特征
             # TODO: 可以在这里插入修改代码，先concat p tensor，再线性层降维，还有生成后面需要的额外token
-            image_features_processed = []
+            global_prompt_list = []
             for image_feature in image_features:
-                image_feature_k = self.k_projector_image(image_feature).unsqueeze(2)
-                image_feature_q = self.q_projector_image(image_feature).unsqueeze(2)
-                image_feature_v = self.v_projector_image(image_feature).unsqueeze(2)
-                patch_size  = image_feature.shape[0]
-                image_len = image_feature.shape[1]
-                soft_prompt_k = self.k_projector_prompt(self.soft_prompts).unsqueeze(0).unsqueeze(1).expand(patch_size,image_len,-1,-1)
-                soft_prompt_v = self.v_projector_prompt(self.soft_prompts).unsqueeze(0).unsqueeze(1).expand(patch_size,image_len,-1,-1)
-                final_k = torch.cat((image_feature_k, soft_prompt_k), dim=2)
-                final_v = torch.cat((image_feature_v, soft_prompt_v), dim=2)
-                pass
-                qk = torch.matmul(image_feature_q.to(final_k.device), final_k.transpose(-1, -2)) / np.sqrt(self.config.vision_config.intermediate_size)
-                atten_weights = torch.softmax(qk, dim=-1)
-                output = torch.matmul(atten_weights, final_v)
-                # image_features_with_soft_prompt = torch.cat((image_feature, self.soft_prompts.unsqueeze(1).expand(-1,self.image_seq_length,-1)), dim=-1)
-                # image_features_processed.append(self.linear_projector(image_features_with_soft_prompt))
-                image_features_processed.append(output.squeeze(2)) # [5, 576, 4096] -> [5, 576, 4096]
-                # image_features_with_soft_prompt = image_feature + self.soft_prompts.unsqueeze(1).expand(-1,self.image_seq_length,-1).to(image_feature.device, image_feature.dtype)
-                # image_features_processed.append(image_features_with_soft_prompt)
-            image_features = tuple(image_features_processed)
+                soft_prompts_q = self.q_projector_prompt(self.soft_prompts)
+                image_feature_k = self.k_projector_image(image_feature)
+                score = (image_feature_k @ soft_prompts_q.T / np.sqrt(self.output_dim)).mean(dim=1) # [patch prompt]
+                weight = torch.softmax(torch.diag(score), dim=-1).to(image_feature.device) # [patch prompt]
+                global_prompt = (weight.unsqueeze(1) * self.soft_prompts).sum(dim=0)
+                global_prompt_list.append(global_prompt)
 
             # NOTE we only support multimodal_patch_merge_type == "spatial_unpad"
             image_features, feature_lens = self.pack_image_features(
@@ -341,7 +260,8 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
             images_feature_dim = (input_ids[0] == self.config.image_token_index).sum()-1
             for input_index in range(images_input_num):
                 new_feature_list.append(image_features[images_feature_dim*(input_index):(images_feature_dim*(input_index+1))].to(inputs_embeds.device, inputs_embeds.dtype))
-                new_feature_list.append(global_prompt_token.to(inputs_embeds.device, inputs_embeds.dtype))
+                new_feature_list.append(global_prompt_list[input_index].to(inputs_embeds.device, inputs_embeds.dtype))
+                # new_feature_list.append(global_prompt_token.to(inputs_embeds.device, inputs_embeds.dtype))
             image_features = torch.cat(new_feature_list, dim=0)
 
             if not is_torchdynamo_compiling() and inputs_embeds[special_image_mask].numel() != image_features.numel(): # type: ignore
