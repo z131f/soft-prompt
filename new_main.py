@@ -20,8 +20,8 @@ if args.cuda_devices:
     print(f"使用命令行指定的CUDA设备: {args.cuda_devices}")
 else:
     # 否则，使用默认设置
-    os.environ['CUDA_VISIBLE_DEVICES'] = '5,6,7'
-    print("使用默认的CUDA设备: 5,6,7")
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+    print("使用默认的CUDA设备: 0,1,2,3")
 
 from config import build_config
 from utils import get_logger, print_trainable_parameters, set_seed, custom_collate_fn, compute_metrics
@@ -30,8 +30,12 @@ config = build_config()
 logger = get_logger()
 set_seed(config['seed'])
 
-if config['model_name'] == 'llava_next':
-    from scripts.llava_next import llava_next_trainer
-    trainer = llava_next_trainer(config, logger, action='skip')
+if config['model_name'] == 'llava_next_tune':
+    from trainer.llava_next_tune import llava_next_tune_trainer
+    trainer = llava_next_tune_trainer(config, logger, action='skip')
     trainer.train()
+    trainer.eval()
+elif config['model_name'] == 'llava_next':
+    from trainer.llava_next import llava_next_trainer
+    trainer = llava_next_trainer(config, logger)
     trainer.eval()
