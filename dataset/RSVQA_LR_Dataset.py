@@ -50,9 +50,9 @@ class RSVQA_LR_Dataset(Dataset):
         samples = []
         # 遍历问题以构建样本
         for question_entry in self.questions_data:
-            if self.task != 'all' and question_entry['type'] != self.task:
-                continue
             if question_entry['active'] == False:
+                continue
+            if self.task != 'all' and question_entry['type'] != self.task:
                 continue
             q_id = question_entry["id"]
             img_id = question_entry["img_id"]
