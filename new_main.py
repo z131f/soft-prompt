@@ -13,6 +13,23 @@ set_seed(config['seed'])
 
 if config['model_name'] == 'llava_next_tune':
     from trainer.llava_next_tune import llava_next_tune_trainer
+    config['task'] = 'comp'
+    print(f'task: {config["task"]}')
+    trainer = llava_next_tune_trainer(config, logger, action='skip')
+    trainer.train()
+    trainer.eval()
+    config['task'] = 'count'
+    print(f'task: {config["task"]}')
+    trainer = llava_next_tune_trainer(config, logger, action='skip')
+    trainer.train()
+    trainer.eval()
+    config['task'] = 'presence'
+    print(f'task: {config["task"]}')
+    trainer = llava_next_tune_trainer(config, logger, action='skip')
+    trainer.train()
+    trainer.eval()
+    config['task'] = 'rural_urban'
+    print(f'task: {config["task"]}')
     trainer = llava_next_tune_trainer(config, logger, action='skip')
     trainer.train()
     trainer.eval()
