@@ -7,7 +7,7 @@ config = {
 
 dataset_config = {
     'RSVQA_LR': {
-        'load_train_num': 50,
+        'load_train_num': 100,
         'load_test_num': 50,
         'image_size': (256, 256),
     }
@@ -15,7 +15,7 @@ dataset_config = {
 
 model_config = {
     'llava_next': {
-        'lr': 1e-2,
+        'lr': 1e-4,
     }
 }
 

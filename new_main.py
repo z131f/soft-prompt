@@ -1,4 +1,5 @@
 import os
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 import argparse # 导入argparse模块，用于处理命令行参数
 
 # 创建一个参数解析器
