@@ -18,5 +18,19 @@ if config['model_name'] == 'llava_next_tune':
     trainer.eval()
 elif config['model_name'] == 'llava_next':
     from trainer.llava_next import llava_next_trainer
+    config['task'] = 'comp'
+    print(f'task: {config["task"]}')
+    trainer = llava_next_trainer(config, logger)
+    trainer.eval()
+    config['task'] = 'count'
+    print(f'task: {config["task"]}')
+    trainer = llava_next_trainer(config, logger)
+    trainer.eval()
+    config['task'] = 'presence'
+    print(f'task: {config["task"]}')
+    trainer = llava_next_trainer(config, logger)
+    trainer.eval()
+    config['task'] = 'rural_urban'
+    print(f'task: {config["task"]}')
     trainer = llava_next_trainer(config, logger)
     trainer.eval()

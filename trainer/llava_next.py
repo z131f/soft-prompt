@@ -78,10 +78,10 @@ class llava_next_trainer():
 
 
     def eval(self):
-        print("\n--- 评估训练结果 ---")
+        # print("\n--- 评估训练结果 ---")
         print("正在加载用于语义相似度的句子 transformer 模型...")
         sentence_model = SentenceTransformer('all-mpnet-base-v2')
-        print("句子 transformer 模型加载完成。")
+        # print("句子 transformer 模型加载完成。")
 
         # 确保模型处于评估模式
         self.model.eval()
@@ -118,9 +118,9 @@ class llava_next_trainer():
                 elif "USER:" in predicted_answer: # 如果模型生成了意外的前缀
                     predicted_answer = predicted_answer.split("USER:")[-1].strip()
 
-            print(f"\n问题: {self.processor.decode(inputs_eval['input_ids'][0], skip_special_tokens=True)}") # type: ignore
-            print(f"预测答案: {predicted_answer}")
-            print(f"真实答案: {ground_truth_answer}")
+            # print(f"\n问题: {self.processor.decode(inputs_eval['input_ids'][0], skip_special_tokens=True)}") # type: ignore
+            # print(f"预测答案: {predicted_answer}")
+            # print(f"真实答案: {ground_truth_answer}")
 
             # --- 语义相似度评分 ---
             # 将答案编码以获取它们的嵌入向量
@@ -129,7 +129,7 @@ class llava_next_trainer():
 
             # 计算余弦相似度
             cosine_similarity = util.cos_sim(embeddings1, embeddings2).item()
-            print(f"语义相似度: {cosine_similarity:.4f}")
+            # print(f"语义相似度: {cosine_similarity:.4f}")
 
             # 检查相似度是否高于阈值
             if cosine_similarity >= semantic_similarity_threshold:
