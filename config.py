@@ -60,7 +60,7 @@ def get_args():
     args = parser.parse_args()
     return args
 
-def build_config(args):
+def build_config():
     """
     根据默认配置和命令行参数构建最终配置。
     Builds the final configuration based on default settings and command-line arguments.
@@ -74,6 +74,7 @@ def build_config(args):
     """
     # 创建配置的副本，以避免直接修改全局变量
     # Create a copy of the config to avoid directly modifying the global variable
+    args = get_args()
     current_config = config.copy()
 
     # 使用命令行参数覆盖默认配置
