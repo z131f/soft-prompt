@@ -56,6 +56,7 @@ def get_args():
     parser.add_argument('--action', type=str, default=config['action'],
                         help='要执行的操作，例如 "train" 或 "eval"') # Action to perform, e.g., "train" or "eval"
     parser.add_argument('--task', type=str, default='rural_urban')
+    parser.add_argument('--load_test_num', type=int, default=1500)
 
     args = parser.parse_args()
     return args
