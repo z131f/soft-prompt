@@ -2,6 +2,7 @@ config = {
     'dataset_name': 'RSVQA_LR',
     'model_name': 'llava_next',
     'seed': 42,
+    'per_device_train_batch_size': 1,
 }
 
 dataset_config = {

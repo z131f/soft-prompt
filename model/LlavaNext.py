@@ -260,7 +260,7 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
             images_feature_dim = (input_ids[0] == self.config.image_token_index).sum()-1
             for input_index in range(images_input_num):
                 new_feature_list.append(image_features[images_feature_dim*(input_index):(images_feature_dim*(input_index+1))].to(inputs_embeds.device, inputs_embeds.dtype))
-                new_feature_list.append(global_prompt_list[input_index].to(inputs_embeds.device, inputs_embeds.dtype))
+                new_feature_list.append(global_prompt_list[input_index].unsqueeze(0).to(inputs_embeds.device, inputs_embeds.dtype))
                 # new_feature_list.append(global_prompt_token.to(inputs_embeds.device, inputs_embeds.dtype))
             image_features = torch.cat(new_feature_list, dim=0)
 
