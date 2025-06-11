@@ -16,7 +16,7 @@ DATA_dic = {
     }
 }
 
-def load_dataset(dataset_name, is_eval, add_instruct, load_num, type, processor):
+def load_dataset(dataset_name, is_eval, add_instruct, load_num, type, processor, task='all'):
     assert dataset_name in DATA_dic, f"Dataset {dataset_name} not found in DATA_dic."
     dataset_info = DATA_dic[dataset_name]
     if dataset_name == 'RSVQA_LR':
@@ -30,5 +30,6 @@ def load_dataset(dataset_name, is_eval, add_instruct, load_num, type, processor)
             image_size=dataset_info['image_size'],
             use_num=load_num,
             add_instruct=add_instruct,
-            is_eval=is_eval
+            is_eval=is_eval,
+            task=task
         )

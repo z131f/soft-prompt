@@ -26,7 +26,7 @@ from transformers.models.llava_next.modeling_llava_next import unpad_image, get_
 from transformers import Trainer, TrainingArguments
 from torch.utils.data import Dataset # 用于自定义数据集
 from tqdm import tqdm  # 用于显示进度条
-from model.LlavaNext import ModifiedLlavaNext
+from model.llava_next_tune import ModifiedLlavaNext
 from utils import custom_collate_fn
 
 

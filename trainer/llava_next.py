@@ -30,6 +30,7 @@ from config import build_config
 
 class llava_next_trainer():
     def __init__(self, config, logger):
+        self.config = config
 
         model_site = config['model_site']
         model_cache = 'model_cache'
@@ -61,6 +62,7 @@ class llava_next_trainer():
                 load_num=self.load_train_num,
                 type="train",
                 processor=self.processor,
+                task=self.config['task']
             )
             RSVQA_LR_Dataset_eval = load_dataset(
                 dataset_name="RSVQA_LR",
@@ -69,6 +71,7 @@ class llava_next_trainer():
                 load_num=self.load_test_num,
                 type="test",
                 processor=self.processor,
+                task=self.config['task']
             )
             self.train_dataset = RSVQA_LR_Dataset_train
             self.eval_dataset = RSVQA_LR_Dataset_eval

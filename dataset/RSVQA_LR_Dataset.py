@@ -13,13 +13,14 @@ import os
 # logger.addHandler(handler)
 
 class RSVQA_LR_Dataset(Dataset):
-    def __init__(self, processor, image_folder_path, questions_json_path, answers_json_path, images_json_path, image_size, use_num,logger=None, add_instruct=False, is_eval=False):
+    def __init__(self, processor, image_folder_path, questions_json_path, answers_json_path, images_json_path, image_size, use_num,logger=None, add_instruct=False, is_eval=False, task='all'):
         self.processor = processor
         self.image_folder_path = image_folder_path
         self.image_size = image_size
         self.logger = logger
         self.add_instruct = add_instruct
         self.is_eval = is_eval  # 是否为评估模式
+        self.task = task  # 任务类型，默认为 'all'
 
         # 从 JSON 文件加载所有数据
         with open(questions_json_path, 'r', encoding='utf-8') as f:
@@ -49,6 +50,8 @@ class RSVQA_LR_Dataset(Dataset):
         samples = []
         # 遍历问题以构建样本
         for question_entry in self.questions_data:
+            if self.task != 'all' and question_entry['type'] != self.task:
+                continue
             if question_entry['active'] == False:
                 continue
             q_id = question_entry["id"]

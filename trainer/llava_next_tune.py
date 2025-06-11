@@ -28,7 +28,7 @@ from utils import custom_collate_fn, compute_metrics, set_seed, get_logger, prin
 from functools import partial
 from config import build_config
 
-class llava_next_trainer():
+class llava_next_tune_trainer():
     def __init__(self, config, logger, tag=None, action=None, load_tag=None):
         if action is None:
             action = 'begin'
@@ -108,6 +108,7 @@ class llava_next_trainer():
                 load_num=self.load_train_num,
                 type="train",
                 processor=self.processor,
+                task=self.config['task']
             )
             RSVQA_LR_Dataset_eval = load_dataset(
                 dataset_name="RSVQA_LR",
@@ -116,6 +117,7 @@ class llava_next_trainer():
                 load_num=self.load_test_num,
                 type="test",
                 processor=self.processor,
+                task=self.config['task']
             )
             self.train_dataset = RSVQA_LR_Dataset_train
             self.eval_dataset = RSVQA_LR_Dataset_eval
