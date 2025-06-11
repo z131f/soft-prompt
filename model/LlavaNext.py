@@ -38,11 +38,11 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
         #     nn.GELU(), # Non-linear activation (Gaussian Error Linear Unit)
         #     nn.Linear(input_dim, output_dim), # Example: reduce to original intermediate_size * 2
         # )
-        self.global_prompt_self_attention = nn.MultiheadAttention(
-            embed_dim=config.vision_config.intermediate_size,  # 或 config.hidden_size，取决于你将在哪里使用它
-            num_heads=1,  # 你可以根据你的需求调整这个数字
-            batch_first=True # 如果你的输入批次维度在前，则设置为 True
-        )
+        # self.global_prompt_self_attention = nn.MultiheadAttention(
+        #     embed_dim=config.vision_config.intermediate_size,  # 或 config.hidden_size，取决于你将在哪里使用它
+        #     num_heads=1,  # 你可以根据你的需求调整这个数字
+        #     batch_first=True # 如果你的输入批次维度在前，则设置为 True
+        # )
         # (self.soft_prompts.unsqueeze(0).expand(config.image_seq_length,-1,-1) * self.image_seq_weight.unsqueeze(2))
 
     def set_train(self):
@@ -66,8 +66,8 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
         #     param.requires_grad = True
         # for param in self.v_projector_prompt.parameters():
         #     param.requires_grad = True
-        for param in self.global_prompt_self_attention.parameters():
-            param.requires_grad = True
+        # for param in self.global_prompt_self_attention.parameters():
+        #     param.requires_grad = True
 
         # 确认哪些参数正在训练
         print("Parameters being trained:")
@@ -253,8 +253,8 @@ class ModifiedLlavaNext(LlavaNextForConditionalGeneration):
             special_image_mask = special_image_mask.expand_as(inputs_embeds).to(inputs_embeds.device) # type: ignore
             # TODO: 只需要在这里把特殊token conncat 到image_features后面就行了
 
-            global_prompt_token, attn_weights = self.global_prompt_self_attention(self.soft_prompts,self.soft_prompts,self.soft_prompts)
-            global_prompt_token = torch.mean(global_prompt_token, dim=0).unsqueeze(0)
+            # global_prompt_token, attn_weights = self.global_prompt_self_attention(self.soft_prompts,self.soft_prompts,self.soft_prompts)
+            # global_prompt_token = torch.mean(global_prompt_token, dim=0).unsqueeze(0)
             new_feature_list = []
             images_input_num = input_ids.shape[0]
             images_feature_dim = (input_ids[0] == self.config.image_token_index).sum()-1

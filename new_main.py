@@ -32,6 +32,6 @@ set_seed(config['seed'])
 
 if config['model_name'] == 'llava_next':
     from scripts.llava_next import llava_next_trainer
-    trainer = llava_next_trainer(config, logger)
+    trainer = llava_next_trainer(config, logger, action='skip')
     trainer.train()
     trainer.eval()

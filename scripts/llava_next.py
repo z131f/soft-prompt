@@ -62,6 +62,8 @@ class llava_next_trainer():
         self.processor = LlavaNextProcessor.from_pretrained(model_site, cache_dir=model_cache, use_fast=True, num_additional_image_tokens=1 + 1)
         print('load train args ...')
         if tag is None:
+            tag = config['dataset_name']+'_'+str(config['load_train_num'])+'_'+str(config['lr'])
+        if tag is None:
             self.output_dir = "./output/llava_next"
         else:
             self.output_dir = "./output/llava_next/" + tag
@@ -102,7 +104,7 @@ class llava_next_trainer():
             RSVQA_LR_Dataset_train = load_dataset(
                 dataset_name="RSVQA_LR",
                 is_eval=False,
-                add_instruct=False,
+                add_instruct=True,
                 load_num=self.load_train_num,
                 type="train",
                 processor=self.processor,
@@ -110,7 +112,7 @@ class llava_next_trainer():
             RSVQA_LR_Dataset_eval = load_dataset(
                 dataset_name="RSVQA_LR",
                 is_eval=True,
-                add_instruct=False,
+                add_instruct=True,
                 load_num=self.load_test_num,
                 type="test",
                 processor=self.processor,
@@ -148,7 +150,7 @@ class llava_next_trainer():
             #q_projector_image_path = os.path.join(loaded_model_dir, "q_projector_image.pt")
             k_projector_image_path = os.path.join(loaded_model_dir, "k_projector_image.pt")
             #v_projector_image_path = os.path.join(loaded_model_dir, "v_projector_image.pt")
-            q_projector_prompt = os.path.join(loaded_model_dir, "q_projector_prompt.pt")
+            q_projector_prompt_path = os.path.join(loaded_model_dir, "q_projector_prompt.pt")
             #v_projector_prompt_path = os.path.join(loaded_model_dir, "v_projector_prompt.pt")
             #global_prompt_self_attention_path = os.path.join(loaded_model_dir, "global_prompt_self_attention.pt")
 
@@ -159,10 +161,10 @@ class llava_next_trainer():
 
             # 加载权重
             self.model.soft_prompts = torch.load(soft_prompts_path, map_location='cuda')
-            self.model.k_projector_image_path.load_state_dict(torch.load(k_projector_image_path, map_location='cuda'))
+            self.model.k_projector_image.load_state_dict(torch.load(k_projector_image_path, map_location='cuda'))
             #self.model.k_projector_image.load_state_dict(torch.load(k_projector_image_path, map_location='cuda'))
             #self.model.v_projector_image.load_state_dict(torch.load(v_projector_image_path, map_location='cuda'))
-            self.model.q_projector_prompt.load_state_dict(torch.load(q_projector_prompt, map_location='cuda'))
+            self.model.q_projector_prompt.load_state_dict(torch.load(q_projector_prompt_path, map_location='cuda'))
             #self.model.v_projector_prompt.load_state_dict(torch.load(v_projector_prompt_path, map_location='cuda'))
             #self.model.global_prompt_self_attention.load_state_dict(torch.load(global_prompt_self_attention_path, map_location='cuda'))
             print("Model weights loaded successfully!")
@@ -224,7 +226,7 @@ class llava_next_trainer():
             with torch.no_grad():
                 generate_ids = self.model.generate(**inputs_eval, max_new_tokens=100)
                 # [1,3806]
-                predicted_answer = processor.batch_decode( # type: ignore
+                predicted_answer = self.processor.batch_decode( # type: ignore
                     generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
                 )[0]
                 # 清理预测答案
@@ -235,7 +237,7 @@ class llava_next_trainer():
                 elif "USER:" in predicted_answer: # 如果模型生成了意外的前缀
                     predicted_answer = predicted_answer.split("USER:")[-1].strip()
 
-            print(f"\n问题: {processor.decode(inputs_eval['input_ids'][0], skip_special_tokens=True)}") # type: ignore
+            print(f"\n问题: {self.processor.decode(inputs_eval['input_ids'][0], skip_special_tokens=True)}") # type: ignore
             print(f"预测答案: {predicted_answer}")
             print(f"真实答案: {ground_truth_answer}")
 

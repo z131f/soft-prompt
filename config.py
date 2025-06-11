@@ -7,8 +7,8 @@ config = {
 
 dataset_config = {
     'RSVQA_LR': {
-        'load_train_num': 100,
-        'load_test_num': 50,
+        'load_train_num': 500,
+        'load_test_num': 1000,
         'image_size': (256, 256),
     }
 }
