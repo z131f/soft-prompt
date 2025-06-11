@@ -80,6 +80,7 @@ class RSVQA_LR_Dataset(Dataset):
             else:
                 self.logger.warning(f"问题 ID {q_id} 没有关联答案。跳过。")
 
+        print(f"准备了 {len(samples)} 个样本。")
         return samples
 
     def __len__(self):
