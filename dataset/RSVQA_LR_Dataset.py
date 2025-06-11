@@ -38,6 +38,7 @@ class RSVQA_LR_Dataset(Dataset):
         # 准备用于迭代的样本列表
         # 每个样本将是 (image_id, question_id, answer_id) 的元组
         self.samples = self._prepare_samples()[:use_num] if use_num > 0 else self._prepare_samples()
+        print(f"加载 {len(self.samples)} 个样本。")
 
     def get_answers_list(self):
         return [s['answer_text'] for s in self.samples]
@@ -80,7 +81,7 @@ class RSVQA_LR_Dataset(Dataset):
             else:
                 self.logger.warning(f"问题 ID {q_id} 没有关联答案。跳过。")
 
-        print(f"准备了 {len(samples)} 个样本。")
+        print(f"共有 {len(samples)} 个样本。")
         return samples
 
     def __len__(self):

@@ -55,7 +55,7 @@ def get_args():
                         help='CUDA设备ID，例如 "0" 或 "0,1"') # CUDA device IDs, e.g., "0" or "0,1"
     parser.add_argument('--action', type=str, default=config['action'],
                         help='要执行的操作，例如 "train" 或 "eval"') # Action to perform, e.g., "train" or "eval"
-    parser.add_argument('--task', type=str, default='rural_urban')
+    parser.add_argument('--task', type=str, default='count')
     parser.add_argument('--load_test_num', type=int, default=1500)
 
     args = parser.parse_args()
