@@ -23,7 +23,7 @@ from transformers.models.llava_next.modeling_llava_next import unpad_image, get_
 from transformers.trainer import Trainer, TrainingArguments
 from torch.utils.data import Dataset # 用于自定义数据集
 from tqdm import tqdm  # 用于显示进度条
-from model.LlavaNext import ModifiedLlavaNext
+from model.llava_next_tune import ModifiedLlavaNext
 from utils import custom_collate_fn, compute_metrics, set_seed, get_logger, print_trainable_parameters
 from functools import partial
 from config import build_config
@@ -55,14 +55,14 @@ class llava_next_tune_trainer():
         self.dataset_name = config['dataset_name']
         per_device_train_batch_size = config['per_device_train_batch_size']
         self.logger = logger
-        print('load model config ...')
+        # print('load model config ...')
         model_config = AutoConfig.from_pretrained(model_site, cache_dir=model_cache, trust_remote_code=True)
         patch_num = image_size_to_num_patches(image_size=image_size,grid_pinpoints=model_config.image_grid_pinpoints,patch_size=model_config.vision_config.image_size)
-        print('load model ...')
+        # print('load model ...')
         self.model = ModifiedLlavaNext.from_pretrained(model_site, config=model_config, cache_dir=model_cache, device_map="balanced", patch_num=patch_num, torch_dtype=torch.bfloat16)
-        print('load model processor ...')
+        # print('load model processor ...')
         self.processor = LlavaNextProcessor.from_pretrained(model_site, cache_dir=model_cache, use_fast=True, num_additional_image_tokens=1 + 1)
-        print('load train args ...')
+        # print('load train args ...')
         if tag is None:
             tag = config['dataset_name']+'_'+str(config['load_train_num'])+'_'+str(config['lr'])
         if tag is None:
@@ -87,9 +87,9 @@ class llava_next_tune_trainer():
             bf16=True,                                         # 使用半精度训练
             seed=seed,
         )
-        print('load dataset ...')
+        # print('load dataset ...')
         self.__load_data()
-        print('load trainer ...')
+        # print('load trainer ...')
         self.trainer = Trainer(
             model=self.model,
             args=self.training_args,
@@ -264,3 +264,4 @@ class llava_next_tune_trainer():
         print(f"总评估样本数: {total_predictions}")
         print(f"语义相似度正确预测数 (相似度 > {semantic_similarity_threshold}): {correct_predictions_semantic}")
         print(f"语义相似度准确率: {accuracy_semantic:.2f}%")
+        return accuracy_semantic

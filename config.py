@@ -3,18 +3,18 @@ import argparse
 
 config = {
     'dataset_name': 'RSVQA_LR',
-    'model_name': 'llava_next',
+    'model_name': 'llava_next_tune',
     'seed': 42,
     'per_device_train_batch_size': 4,
     'load_tag': 'RSVQA_LR_1000_0.0001',
     'cuda_devices': '0,1',
-    'action': 'train',
+    'action': 'skip',
 }
 
 dataset_config = {
     'RSVQA_LR': {
         'load_train_num': 1000,
-        'load_test_num': 1500,
+        'load_test_num': 1,
         'image_size': (256, 256),
         'task': 'all'
     }
@@ -56,7 +56,7 @@ def get_args():
     parser.add_argument('--action', type=str, default=config['action'],
                         help='要执行的操作，例如 "train" 或 "eval"') # Action to perform, e.g., "train" or "eval"
     parser.add_argument('--task', type=str, default='count')
-    parser.add_argument('--load_test_num', type=int, default=1500)
+    parser.add_argument('--load_test_num', type=int, default=3)
 
     args = parser.parse_args()
     return args
