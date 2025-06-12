@@ -1,3 +1,5 @@
+import os
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 import logging
 import os # 导入 logging 以便更好地处理错误
 # from dataset.RSVQA_LR_Dataset import RSVQA_LR_Dataset
