@@ -8,15 +8,15 @@ config = {
     'model_name': 'llava_next_tune',
     'seed': 42,
     'per_device_train_batch_size': 4,
-    'cuda_devices': '3,5',
-    'action': 'begin',
-    'tag': 'auto',
+    'cuda_devices': '3,5,6',
+    'action': 'skip',
+    'tag': 'RSVQA_LR_1000_0.0001',
 }
 
 dataset_config = {
     'RSVQA_LR': {
         'load_train_num': [300, 300, 300, 300],
-        'load_test_num': 400,
+        'load_test_num': 800,
         'image_size': (256, 256),
         'task': 'all'
     }

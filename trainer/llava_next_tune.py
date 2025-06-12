@@ -59,7 +59,7 @@ class llava_next_tune_trainer():
         model_config = AutoConfig.from_pretrained(model_site, cache_dir=model_cache, trust_remote_code=True)
         patch_num = image_size_to_num_patches(image_size=image_size,grid_pinpoints=model_config.image_grid_pinpoints,patch_size=model_config.vision_config.image_size)
         # print('load model ...')
-        self.model = ModifiedLlavaNext.from_pretrained(model_site, config=model_config, cache_dir=model_cache, device_map="balanced", patch_num=patch_num, torch_dtype=torch.bfloat16)
+        self.model = ModifiedLlavaNext.from_pretrained(model_site, config=model_config, cache_dir=model_cache, device_map="balanced_low_0", patch_num=patch_num, torch_dtype=torch.bfloat16)
         # print('load model processor ...')
         self.processor = LlavaNextProcessor.from_pretrained(model_site, cache_dir=model_cache, use_fast=True, num_additional_image_tokens=1 + 1)
         # print('load train args ...')
@@ -199,7 +199,7 @@ class llava_next_tune_trainer():
     def eval(self):
         print("\n--- 评估训练结果 ---")
         print("正在加载用于语义相似度的句子 transformer 模型...")
-        sentence_model = SentenceTransformer('all-mpnet-base-v2')
+        sentence_model = SentenceTransformer('all-mpnet-base-v2', device='cuda')
         #print("句子 transformer 模型加载完成。")
 
         # 确保模型处于评估模式
@@ -218,13 +218,13 @@ class llava_next_tune_trainer():
         eval_dataloader = torch.utils.data.DataLoader(self.eval_dataset, batch_size=1, collate_fn=custom_collate_fn)
         answer_list = self.eval_dataset.get_answers_list() # 获取答案列表
 
-        for idx, batch in tqdm(enumerate(eval_dataloader), desc="正在评估"):
+        for idx, batch in tqdm(enumerate(eval_dataloader), total=len(self.eval_dataset)):
             # 将批次数据移动到设备上
             inputs_eval = {k: v.to('cuda') for k, v in batch.items() if k != 'answer_text'}
             ground_truth_answer = answer_list[idx] # 假设批处理大小为1，简化处理
 
             with torch.no_grad():
-                generate_ids = self.model.generate(**inputs_eval, max_new_tokens=100)
+                generate_ids = self.model.generate(**inputs_eval, max_new_tokens=100, pad_token_id=self.processor.tokenizer.eos_token_id)
                 # [1,3806]
                 predicted_answer = self.processor.batch_decode( # type: ignore
                     generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
