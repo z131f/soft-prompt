@@ -61,7 +61,7 @@ class llava_next_tune_trainer():
         model_config = AutoConfig.from_pretrained(model_site, cache_dir=model_cache, trust_remote_code=True)
         patch_num = image_size_to_num_patches(image_size=image_size,grid_pinpoints=model_config.image_grid_pinpoints,patch_size=model_config.vision_config.image_size)
         # print('load model ...')
-        self.model = ModifiedLlavaNext.from_pretrained(model_site, config=model_config, cache_dir=model_cache, device_map="balanced_low_0", patch_num=patch_num, torch_dtype=torch.bfloat16)
+        self.model = ModifiedLlavaNext.from_pretrained(model_site, config=model_config, cache_dir=model_cache, device_map="auto", patch_num=patch_num, torch_dtype=torch.bfloat16)
         # print('load model processor ...')
         self.processor = LlavaNextProcessor.from_pretrained(model_site, cache_dir=model_cache, use_fast=True, num_additional_image_tokens=1 + 1)
         # print('load train args ...')
