@@ -65,7 +65,7 @@ class llava_next_tune_trainer():
         # print('load train args ...')
         tag = config['tag']
         if tag == 'auto':
-            tag = config['dataset_name']+'_'+config['load_train_num']+'_'+str(config['lr'])
+            tag = config['dataset_name']+'_'+str(config['load_train_num'])+'_'+str(config['lr'])
         self.output_dir = "./output/llava_next/" + tag
         print(f"Output directory: {self.output_dir}")
         self.training_args = TrainingArguments(
