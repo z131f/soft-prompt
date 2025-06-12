@@ -1,3 +1,5 @@
+trainer/__pycache__/
+output/
 model_cache/
 model_cache/.locks/models--llava-hf--llava-v1.6-mistral-7b-hf/02a36fb5d7b0574dc4c8da545089aac85b14a7972908293c11a63eca8ef46c0e.lock
 model_cache/.locks/models--llava-hf--llava-v1.6-mistral-7b-hf/2d7d9a865868c5f05d8e44b6218f43401a0456d875429d32fa5f947d5ca01a67.lock

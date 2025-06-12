@@ -29,7 +29,8 @@ from functools import partial
 from config import build_config
 
 class llava_next_tune_trainer():
-    def __init__(self, config, logger, tag=None, action=None, load_tag=None):
+    def __init__(self, config, logger):
+        action = config['action']
         if action is None:
             action = 'begin'
         assert action in ['begin', 'continue', 'skip']
@@ -41,7 +42,6 @@ class llava_next_tune_trainer():
             if action == 'continue':
                 print('continue training ...')
         self.action = action
-        self.load_tag = load_tag
 
         self.config = config
 
@@ -63,12 +63,11 @@ class llava_next_tune_trainer():
         # print('load model processor ...')
         self.processor = LlavaNextProcessor.from_pretrained(model_site, cache_dir=model_cache, use_fast=True, num_additional_image_tokens=1 + 1)
         # print('load train args ...')
-        if tag is None:
-            tag = config['dataset_name']+'_'+str(config['load_train_num'])+'_'+str(config['lr'])
-        if tag is None:
-            self.output_dir = "./output/llava_next"
-        else:
-            self.output_dir = "./output/llava_next/" + tag
+        tag = config['tag']
+        if tag == 'auto':
+            tag = config['dataset_name']+'_'+config['load_train_num']+'_'+str(config['lr'])
+        self.output_dir = "./output/llava_next/" + tag
+        print(f"Output directory: {self.output_dir}")
         self.training_args = TrainingArguments(
             output_dir=self.output_dir, # 训练输出目录
             num_train_epochs=1,                                # 训练轮数
@@ -139,10 +138,7 @@ class llava_next_tune_trainer():
 
     
     def __load_model(self):
-        if self.action == 'continue' and not self.skip_training:
-            self.output_dir = "./output/llava_next/" + self.load_tag
-        else:
-            loaded_model_dir = self.output_dir
+        loaded_model_dir = self.output_dir
         print(f"Skipping training. Attempting to load model from {loaded_model_dir}...")
         try:
             # 确保加载的模型目录存在

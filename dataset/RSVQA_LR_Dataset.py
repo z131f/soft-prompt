@@ -22,6 +22,9 @@ class RSVQA_LR_Dataset(Dataset):
         self.is_eval = is_eval  # 是否为评估模式
         self.task = task  # 任务类型，默认为 'all'
 
+        self.task_list = ['comp', 'count', 'presence', 'rural_urban']
+        use_num = {self.task_list[i]: use_num[i] for i in range(len(self.task_list))} if isinstance(use_num, list) else use_num
+
         # 从 JSON 文件加载所有数据
         with open(questions_json_path, 'r', encoding='utf-8') as f:
             self.questions_data = json.load(f)["questions"]
@@ -37,7 +40,16 @@ class RSVQA_LR_Dataset(Dataset):
 
         # 准备用于迭代的样本列表
         # 每个样本将是 (image_id, question_id, answer_id) 的元组
-        self.samples = self._prepare_samples()[:use_num] if use_num > 0 else self._prepare_samples()
+        self.samples = self._prepare_samples()
+        if isinstance(use_num, int) and use_num > 0:
+            self.samples = self.samples[:use_num]
+        elif isinstance(use_num, dict):
+            new_samples = []
+            for sample in self.samples:
+                if sample['type'] in use_num and use_num[sample['type']] > 0:
+                    new_samples.append(sample)
+                    use_num[sample['type']] -= 1
+            self.samples = new_samples
         print(f"加载 {len(self.samples)} 个样本。")
 
     def get_answers_list(self):
@@ -74,7 +86,8 @@ class RSVQA_LR_Dataset(Dataset):
                             "question_id": q_id,
                             "answer_id": ans_id,
                             "question_text": question_text,
-                            "answer_text": answer_entry["answer"]
+                            "answer_text": answer_entry["answer"],
+                            "type": question_entry["type"]
                         })
                     else:
                         self.logger.warning(f"问题 ID {q_id} 的答案 ID {ans_id} 在 answers.json 中未找到。跳过。")
