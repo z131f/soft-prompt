@@ -80,7 +80,7 @@ class llava_next_trainer():
     def eval(self):
         # print("\n--- 评估训练结果 ---")
         print("正在加载用于语义相似度的句子 transformer 模型...")
-        sentence_model = SentenceTransformer('all-mpnet-base-v2')
+        sentence_model = SentenceTransformer('all-mpnet-base-v2', device='cuda', cache_folder='model_cache/sentence_transformer')
         # print("句子 transformer 模型加载完成。")
 
         # 确保模型处于评估模式

@@ -1,6 +1,7 @@
 model_name_map = {
     'llava_next_tune': 'llava-hf/llava-v1.6-mistral-7b-hf',
-    'llava_next': 'llava-hf/llava-v1.6-mistral-7b-hf'
+    'llava_next': 'llava-hf/llava-v1.6-mistral-7b-hf',
+    'llava_rs': 'BigData-KSU/RS-llava-v1.5-7b-LoRA'
 }
 
 def load_model_trainer(config, logger):
