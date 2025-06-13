@@ -11,6 +11,7 @@ config = {
     'cuda_devices': '3,5,6',
     'action': 'skip',
     'tag': 'RSVQA_LR_1000_0.0001',
+    'device_map': 'balanced',  # 'balanced' or 'auto'
 }
 
 dataset_config = {
@@ -27,6 +28,9 @@ model_config = {
         'lr': 1e-4,
     },
     'llava_next': {
+        'lr': None,
+    },
+    'llava_rs': {
         'lr': None,
     }
 }
@@ -54,6 +58,7 @@ def get_args():
                         help='要执行的操作，例如 "train" 或 "eval"') # Action to perform, e.g., "train" or "eval"
     parser.add_argument('--task', type=str, default=config['task'])
     parser.add_argument('--load_test_num', type=int, default=config['load_test_num'],)
+    parser.add_argument('--device_map', type=str, default=config['device_map'],)
 
     args = parser.parse_args()
     return args
