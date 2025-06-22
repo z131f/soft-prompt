@@ -155,19 +155,19 @@ class ModifiedQwenVL(Qwen2_5_VLForConditionalGeneration):
                 image_embeds = torch.cat([image_embeds, global_prompt.unsqueeze(0)], dim=0)
 
                 # tem
-                heatmap_data = weight.float().reshape((18,18)).cpu().detach().numpy()
-                # 2. 绘制热力图
-                plt.figure(figsize=(8, 7)) # 可以调整图的大小
-                sns.heatmap(heatmap_data, annot=False, cmap='viridis', fmt=".2f", linewidths=.5)
-                # annot=True 会在每个单元格显示数值
-                # cmap='viridis' 是一个常用的颜色映射，你也可以尝试 'plasma', 'magma', 'coolwarm' 等
-                # fmt=".2f" 将数值格式化为保留两位小数的浮点数
-                # linewidths=.5 增加单元格之间的线条，使其更清晰
-                # plt.title('Weight Heatmap (9x9)')
-                plt.xlabel('Column Index')
-                plt.ylabel('Row Index')
-                tag = random.randint(0, 999999)
-                plt.savefig(f'images/weight_heatmap_{str(tag)}.png', bbox_inches='tight', dpi=300)
+                # heatmap_data = weight.float().reshape((18,18)).cpu().detach().numpy()
+                # # 2. 绘制热力图
+                # plt.figure(figsize=(8, 7)) # 可以调整图的大小
+                # sns.heatmap(heatmap_data, annot=False, cmap='viridis', fmt=".2f", linewidths=.5)
+                # # annot=True 会在每个单元格显示数值
+                # # cmap='viridis' 是一个常用的颜色映射，你也可以尝试 'plasma', 'magma', 'coolwarm' 等
+                # # fmt=".2f" 将数值格式化为保留两位小数的浮点数
+                # # linewidths=.5 增加单元格之间的线条，使其更清晰
+                # # plt.title('Weight Heatmap (9x9)')
+                # plt.xlabel('Column Index')
+                # plt.ylabel('Row Index')
+                # tag = random.randint(0, 999999)
+                # plt.savefig(f'images/weight_heatmap_{str(tag)}.png', bbox_inches='tight', dpi=300)
                 # tem end
 
                 n_image_tokens = (input_ids == self.config.image_token_id).sum().item()
